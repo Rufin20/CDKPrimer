@@ -1,0 +1,52 @@
+---
+- name: Update APT Cache
+  apt:
+    update_cache: yes
+
+- block:
+  - name: Add signing key for cri-o-runc repo ({{ os }})
+    apt_key:
+      url: https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/{{ os }}_{{ ansible_lsb.release }}/Release.key
+      state: present
+
+  - name: Add signing key for cri-o repo ({{ os }})
+    apt_key:
+      url: https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:{{ kubernetes_version }}/{{ os }}_{{ ansible_lsb.release }}/Release.key
+      state: present
+
+  - name: Adding repository for cri-o-runc ({{ os }})
+    apt_repository:
+      repo: "deb http://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/{{ os }}_{{ ansible_lsb.release }}/ /"
+      state: present
+      filename: devel:kubic:libcontainers:stable
+  
+  - name: Adding repository for cri-o({{ os }})
+    apt_repository:
+      repo: "deb http://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:/cri-o:/{{ kubernetes_version }}/{{ os }}_{{ ansible_lsb.release }}/ /"
+      state: present
+      filename: devel:kubic:libcontainers:stable:cri-o:{{ kubernetes_version }}
+  
+  - name: Install cri-o Runtime ({{ os }})
+    apt:
+      name: "{{ kubernetes_runtime }}"
+      update_cache: yes
+    when: ansible_distribution == "{{ os }}"
+
+  - name: run CRI-O with systemd cgroup manager
+    replace:
+      regexp: 'cgroupfs'
+      replace: 'systemd'
+      name: /etc/crio/crio.conf
+      backup: yes
+
+  - name: enable and start CRI-O
+    systemd:
+      name: crio
+      state: started
+      enabled: yes
+      daemon_reload: yes
+
+  - name: modprobe br_netfilter
+    command: "modprobe br_netfilter"
+    ignore_errors: true
+
